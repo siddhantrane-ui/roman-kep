@@ -9,12 +9,18 @@ client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # ── Prompt: matches fine-tune training format ─────────────────────────────────
 HUMANIZE_SYSTEM = (
     "Make this less robotic and more conversational, natural and human. "
-    "Keep the content and context exactly the same as the original — do not generate new content, do not change the topic, do not add new ideas, and do not remove any existing information. "
-    "Every fact, name, date, and idea from the original must appear in the output unchanged. "
-    "Do NOT open with generic AI-style sentences like 'X was a great person' or 'X is known as a leader' — these are robotic. "
-    "Instead, open in a way that reflects the actual point or argument of the original text. "
-    "Do not oversimplify or water down the content. "
-    "All words must be spelled correctly — no typos or spelling mistakes of any kind."
+
+    "STRICT CONTENT RULES — breaking any of these is a failure:\n"
+    "1. Do NOT add anything. No new facts, no new opinions, no new examples, no new sentences, no personal commentary.\n"
+    "2. Do NOT remove anything. Every fact, name, date, event, and idea from the original must appear in the output.\n"
+    "3. Do NOT change the topic or drift from the subject. If the text is about X, your output must stay about X.\n"
+    "4. Do NOT open with generic phrases like 'X was a great person' or 'X is widely known as' — these are robotic fillers.\n"
+    "5. Every word must be spelled correctly. No typos. No spelling mistakes of any kind.\n"
+
+    "STYLE RULES — apply these to sound human:\n"
+    "- Mix short punchy sentences with longer ones.\n"
+    "- Avoid AI words: comprehensive, foster, delve, transformative, tapestry, pivotal, unlocked.\n"
+    "- Write conversationally — like a real person explaining something they know well."
 )
 
 AVAILABLE_MODELS = [
@@ -26,34 +32,37 @@ DEFAULT_MODEL = AVAILABLE_MODELS[0]
 
 
 def humanize_text(ai_text: str, model: str = DEFAULT_MODEL) -> str:
-    """Rewrite AI text as human-written, then fix spelling."""
+    """Rewrite AI text as human-written."""
     if not ai_text or not ai_text.strip():
         raise ValueError("Input text cannot be empty.")
 
-    # ── Pass 1: humanize ──────────────────────────────────────────────────────
-    r1 = client.chat.completions.create(
+    input_words = len(ai_text.split())
+    max_words = int(input_words * 1.4)
+    system_msg = HUMANIZE_SYSTEM + f"\n6. LENGTH: Your output must not exceed {max_words} words. The input is {input_words} words — keep within 40% of that."
+
+    response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": HUMANIZE_SYSTEM},
+            {"role": "system", "content": system_msg},
             {"role": "user", "content": ai_text},
         ],
     )
-    humanized = r1.choices[0].message.content
-    if not humanized:
-        finish_reason = r1.choices[0].finish_reason
+    content = response.choices[0].message.content
+    if not content:
+        finish_reason = response.choices[0].finish_reason
         raise ValueError(f"Model returned empty response. Finish reason: {finish_reason}")
 
-    # ── Pass 2: spell-check only ──────────────────────────────────────────────
-    r2 = client.chat.completions.create(
+    # ── Post layer: spelling fix only ─────────────────────────────────────────
+    spell_check = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": "Fix only spelling mistakes in the text. Do not change any words, grammar, punctuation, style, or content. Return the corrected text only."},
-            {"role": "user", "content": humanized},
+            {"role": "system", "content": "You are a spell checker. Fix ONLY misspelled words. Do not change anything else — not the wording, not the grammar, not the sentence structure, not the style. Return the text exactly as given except for corrected spelling."},
+            {"role": "user", "content": content},
         ],
         temperature=0,
     )
-    spellchecked = r2.choices[0].message.content
-    return (spellchecked or humanized).strip()
+    fixed = spell_check.choices[0].message.content
+    return (fixed or content).strip()
 
 
 def get_available_models() -> list[str]:
