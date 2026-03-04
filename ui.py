@@ -1,3 +1,4 @@
+import html as html_lib
 import streamlit as st
 import openai
 from llm import humanize_text, get_available_models
@@ -193,8 +194,28 @@ with col2:
     if st.session_state.humanized:
         st.markdown(f'<div class="output-box human-box">{st.session_state.humanized}</div>', unsafe_allow_html=True)
         st.markdown(badges(st.session_state.humanized), unsafe_allow_html=True)
-        st.download_button("⬇ Download", data=st.session_state.humanized,
-                           file_name="humanized.txt", mime="text/plain", key="dl_human")
+        dl_col, cp_col = st.columns(2)
+        with dl_col:
+            st.download_button("⬇ Download", data=st.session_state.humanized,
+                               file_name="humanized.txt", mime="text/plain", key="dl_human")
+        with cp_col:
+            safe_text = html_lib.escape(st.session_state.humanized, quote=True)
+            st.components.v1.html(f"""
+                <button id="cb" data-text="{safe_text}"
+                        style="background:linear-gradient(135deg,#e8a44a,#c97b2e);color:#0e0e10;border:none;border-radius:50px;
+                               font-family:'DM Sans',sans-serif;font-weight:500;font-size:0.9rem;letter-spacing:0.05em;
+                               padding:0.5rem 1.5rem;cursor:pointer;width:100%;">
+                    ⎘ Copy
+                </button>
+                <script>
+                document.getElementById('cb').addEventListener('click', function() {{
+                    navigator.clipboard.writeText(this.dataset.text).then(() => {{
+                        this.textContent = '✓ Copied';
+                        setTimeout(() => this.textContent = '⎘ Copy', 1500);
+                    }});
+                }});
+                </script>
+            """, height=45)
     else:
         st.markdown('<div class="output-box empty">ESL humanized version appears here...</div>', unsafe_allow_html=True)
 
