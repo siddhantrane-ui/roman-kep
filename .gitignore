@@ -1,3 +1,5 @@
 .env
 __pycache__/
 AI_Human.csv
+train.jsonl
+validation.jsonl
