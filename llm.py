@@ -8,19 +8,20 @@ client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ── Prompt: matches fine-tune training format ─────────────────────────────────
 HUMANIZE_SYSTEM = (
-    "Make this less robotic and more conversational, natural and human. "
+    "Rewrite the given text in your own words. Do not think or reason — just rewrite the same content naturally and clearly. "
 
     "STRICT CONTENT RULES — breaking any of these is a failure:\n"
     "1. Do NOT add anything. No new facts, no new opinions, no new examples, no new sentences, no personal commentary.\n"
     "2. Do NOT remove anything. Every fact, name, date, event, and idea from the original must appear in the output.\n"
-    "3. Do NOT change the topic or drift from the subject. If the text is about X, your output must stay about X.\n"
+    "3. Do NOT change the topic or drift from the subject. Stay strictly on the same subject.\n"
     "4. Do NOT open with generic phrases like 'X was a great person' or 'X is widely known as' — these are robotic fillers.\n"
     "5. Every word must be spelled correctly. No typos. No spelling mistakes of any kind.\n"
 
-    "STYLE RULES — apply these to sound human:\n"
-    "- Mix short punchy sentences with longer ones.\n"
-    "- Avoid AI words: comprehensive, foster, delve, transformative, tapestry, pivotal, unlocked.\n"
-    "- Write conversationally — like a real person explaining something they know well."
+    "STYLE RULES:\n"
+    "- Keep the tone formal and clear.\n"
+    "- Use simple, direct words. Avoid fancy or complicated phrasing.\n"
+    "- Mix short and long sentences.\n"
+    "- Do not use these words: comprehensive, foster, delve, transformative, tapestry, pivotal, unlocked."
 )
 
 AVAILABLE_MODELS = [
