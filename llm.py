@@ -55,18 +55,30 @@ def humanize_text(ai_text: str, model: str = DEFAULT_MODEL) -> str:
                 break
         content = truncated
 
-    # ── Post layer: spelling + grammar fix only ───────────────────────────────
-    spell_check = client.chat.completions.create(
+    # ── Post layer: fact restore + spelling fix (minimal touch) ─────────────
+    cleanup = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": "Fix ONLY spelling mistakes and grammatical errors. Do not change the wording, the style, the sentence structure, or the content in any way. Do not add or remove anything. Return the text exactly as given, with only spelling and grammar corrected."},
-            {"role": "user", "content": content},
+            {
+                "role": "system",
+                "content": (
+                    "You are a fact checker. You are given an ORIGINAL text and a REWRITTEN version.\n"
+                    "Your job — do ONLY these two things, nothing else:\n"
+                    "1. If any proper nouns, names, dates, numbers, or specific terms from the ORIGINAL are missing from the REWRITTEN version, insert them into the nearest relevant sentence. Do not rewrite the sentence — just insert the missing word or phrase.\n"
+                    "2. Fix spelling mistakes only. Do not fix grammar, do not change sentence structure, do not change wording.\n"
+                    "Do NOT rewrite, restructure, or rephrase anything. Return the REWRITTEN text with only the minimum changes above."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"ORIGINAL:\n{ai_text}\n\nREWRITTEN:\n{content}",
+            },
         ],
         temperature=0,
     )
-    fixed = (spell_check.choices[0].message.content or content).strip()
+    fixed = (cleanup.choices[0].message.content or content).strip()
 
-    # ── Final word cap after spell check ──────────────────────────────────────
+    # ── Final word cap after cleanup ──────────────────────────────────────────
     words = fixed.split()
     if len(words) > max_words:
         truncated = " ".join(words[:max_words])
