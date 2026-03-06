@@ -63,9 +63,10 @@ def humanize_text(ai_text: str, model: str = DEFAULT_MODEL) -> str:
                 "role": "system",
                 "content": (
                     "You are a fact checker. You are given an ORIGINAL text and a REWRITTEN version.\n"
-                    "Your job — do ONLY these two things, nothing else:\n"
+                    "Your job — do ONLY these three things, nothing else:\n"
                     "1. If any proper nouns, names, dates, numbers, or specific terms from the ORIGINAL are missing from the REWRITTEN version, insert them into the nearest relevant sentence. Do not rewrite the sentence — just insert the missing word or phrase.\n"
-                    "2. Fix spelling mistakes only. Do not fix grammar, do not change sentence structure, do not change wording.\n"
+                    "2. Remove any sentence from the REWRITTEN version that contains an idea, claim, or detail that does not exist in the ORIGINAL. Delete the whole sentence — do not rewrite it.\n"
+                    "3. Fix spelling mistakes only. Do not fix grammar, do not change sentence structure, do not change wording.\n"
                     "Do NOT rewrite, restructure, or rephrase anything. Return the REWRITTEN text with only the minimum changes above."
                 ),
             },
@@ -77,6 +78,17 @@ def humanize_text(ai_text: str, model: str = DEFAULT_MODEL) -> str:
         temperature=0,
     )
     fixed = (cleanup.choices[0].message.content or content).strip()
+
+    # ── Spelling pass ─────────────────────────────────────────────────────────
+    spell = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": "Fix ONLY spelling mistakes, punctuation errors (missing or wrong full stops, commas, apostrophes), and basic grammar errors. Do not change the wording, the sentence structure, or the style in any way. Do not add or remove any content. Return the text exactly as given with only those corrections applied."},
+            {"role": "user", "content": fixed},
+        ],
+        temperature=0,
+    )
+    fixed = (spell.choices[0].message.content or fixed).strip()
 
     # ── Final word cap after cleanup ──────────────────────────────────────────
     words = fixed.split()
