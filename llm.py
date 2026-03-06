@@ -8,20 +8,10 @@ client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ── Prompt: matches fine-tune training format ─────────────────────────────────
 HUMANIZE_SYSTEM = (
-    "Rewrite the given text in your own words. Do not think or reason — just rewrite the same content naturally and clearly. "
-
-    "STRICT CONTENT RULES — breaking any of these is a failure:\n"
-    "1. Do NOT add anything. No new facts, no new opinions, no new examples, no new sentences, no personal commentary.\n"
-    "2. Do NOT remove anything. Every fact, name, date, event, and idea from the original must appear in the output.\n"
-    "3. Do NOT change the topic or drift from the subject. Stay strictly on the same subject.\n"
-    "4. Do NOT open with generic phrases like 'X was a great person' or 'X is widely known as' — these are robotic fillers.\n"
-    "5. Every word must be spelled correctly. No typos. No spelling mistakes of any kind.\n"
-
-    "STYLE RULES:\n"
-    "- Keep the tone formal and clear.\n"
-    "- Use simple, direct words. Avoid fancy or complicated phrasing.\n"
-    "- Mix short and long sentences.\n"
-    "- Do not use these words: comprehensive, foster, delve, transformative, tapestry, pivotal, unlocked."
+    "Make this less robotic and more conversational, natural and human. "
+    "Stay on the same topic and do not introduce new content that is not in the original text. "
+    "Keep the key terms and subject words exactly as they are — do not replace them with synonyms. "
+    "Do not add questions or interrogative sentences unless they already exist in the original text."
 )
 
 AVAILABLE_MODELS = [
@@ -39,7 +29,7 @@ def humanize_text(ai_text: str, model: str = DEFAULT_MODEL) -> str:
 
     input_words = len(ai_text.split())
     max_words = int(input_words * 1.4)
-    system_msg = HUMANIZE_SYSTEM + f"\n6. LENGTH: Your output must not exceed {max_words} words. The input is {input_words} words — keep within 40% of that."
+    system_msg = HUMANIZE_SYSTEM + f" Keep the output within {max_words} words."
 
     response = client.chat.completions.create(
         model=model,
@@ -53,17 +43,41 @@ def humanize_text(ai_text: str, model: str = DEFAULT_MODEL) -> str:
         finish_reason = response.choices[0].finish_reason
         raise ValueError(f"Model returned empty response. Finish reason: {finish_reason}")
 
-    # ── Post layer: spelling fix only ─────────────────────────────────────────
+    # ── Hard word cap: truncate at last sentence within limit ─────────────────
+    words = content.split()
+    if len(words) > max_words:
+        truncated = " ".join(words[:max_words])
+        # cut back to the last sentence boundary
+        for punct in (".", "!", "?"):
+            idx = truncated.rfind(punct)
+            if idx != -1:
+                truncated = truncated[:idx + 1]
+                break
+        content = truncated
+
+    # ── Post layer: spelling + grammar fix only ───────────────────────────────
     spell_check = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": "You are a spell checker. Fix ONLY misspelled words. Do not change anything else — not the wording, not the grammar, not the sentence structure, not the style. Return the text exactly as given except for corrected spelling."},
+            {"role": "system", "content": "Fix ONLY spelling mistakes and grammatical errors. Do not change the wording, the style, the sentence structure, or the content in any way. Do not add or remove anything. Return the text exactly as given, with only spelling and grammar corrected."},
             {"role": "user", "content": content},
         ],
         temperature=0,
     )
-    fixed = spell_check.choices[0].message.content
-    return (fixed or content).strip()
+    fixed = (spell_check.choices[0].message.content or content).strip()
+
+    # ── Final word cap after spell check ──────────────────────────────────────
+    words = fixed.split()
+    if len(words) > max_words:
+        truncated = " ".join(words[:max_words])
+        for punct in (".", "!", "?"):
+            idx = truncated.rfind(punct)
+            if idx != -1:
+                truncated = truncated[:idx + 1]
+                break
+        fixed = truncated
+
+    return fixed
 
 
 def get_available_models() -> list[str]:
